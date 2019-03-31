@@ -16,16 +16,16 @@ namespace TPLSamples
                 {
                     Thread.Sleep(100);
 
-					//if (cts.IsCancellationRequested)
-					//	throw new OperationCanceledException(cts.Token);
+//                    if (cts.IsCancellationRequested)
+//                    	throw new OperationCanceledException(cts.Token);
 
-					//cts.Token.ThrowIfCancellationRequested();
-				}
+                    cts.Token.ThrowIfCancellationRequested();
+                }
             }, cts.Token);
 
-			Console.WriteLine($"Before start: {task.Status}");
-			cts.Cancel();
-			task.Start();
+            Console.WriteLine($"Before start: {task.Status}");
+//            cts.Cancel();
+            task.Start();
             Console.WriteLine($"After start: {task.Status}");
             cts.Cancel();
             Thread.Sleep(100);

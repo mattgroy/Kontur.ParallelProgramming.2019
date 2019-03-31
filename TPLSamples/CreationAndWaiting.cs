@@ -9,65 +9,65 @@ namespace TPLSamples
         public static void QueueUserWorkItem()
         {
             ThreadPool.QueueUserWorkItem(state =>
-                                         {
-                                             Console.WriteLine("Starting...");
-                                             Thread.Sleep(1000);
-                                             Console.WriteLine("... finished!");
-                                         });
+            {
+                Console.WriteLine("Starting...");
+                Thread.Sleep(1000);
+                Console.WriteLine("... finished!");
+            });
         }
 
         public static void QueueUserWorkItemWaitingToFinish()
         {
             var methodFinishedEvent = new AutoResetEvent(false);
             ThreadPool.QueueUserWorkItem(state =>
-                                         {
-                                             Console.WriteLine("Starting...");
-                                             Thread.Sleep(1000);
-                                             Console.WriteLine("... finished!");
-                                             methodFinishedEvent.Set();
-                                         });
-            methodFinishedEvent.WaitOne(); 
+            {
+                Console.WriteLine("Starting...");
+                Thread.Sleep(1000);
+                Console.WriteLine("... finished!");
+                methodFinishedEvent.Set();
+            });
+            methodFinishedEvent.WaitOne();
         }
 
         public static void TaskWaitingToFinish()
         {
             var task = new Task(() =>
-                                {
-                                    Console.WriteLine("Starting...");
-                                    Thread.Sleep(1000);
-                                    Console.WriteLine("... finished!");
-                                });
+            {
+                Console.WriteLine("Starting...");
+                Thread.Sleep(1000);
+                Console.WriteLine("... finished!");
+            });
             task.Start();
             task.Wait();
         }
 
         public static void Statuses()
         {
-	        var task = new Task(() =>
-	        {
-		        Console.WriteLine("Starting...");
-		        Thread.Sleep(1000);
-		        Console.WriteLine("... finished!");
-		        throw new Exception();
-	        });
+            var task = new Task(() =>
+            {
+                Console.WriteLine("Starting...");
+                Thread.Sleep(1000);
+                Console.WriteLine("... finished!");
+                throw new Exception();
+            });
 
-	        Console.WriteLine("Task1 status: {0}", task.Status);
-	        task.Start();
-	        Console.WriteLine("Task1 status: {0}", task.Status);
-	        Thread.Sleep(500);
-	        Console.WriteLine("Task1 status: {0}", task.Status);
-	        task.Wait();
-	        Console.WriteLine("Task1 status: {0}", task.Status);
+            Console.WriteLine("Task1 status: {0}", task.Status);
+            task.Start();
+            Console.WriteLine("Task1 status: {0}", task.Status);
+            Thread.Sleep(500);
+            Console.WriteLine("Task1 status: {0}", task.Status);
+            task.Wait();
+            Console.WriteLine("Task1 status: {0}", task.Status);
         }
 
-		public static void TaskRun()
+        public static void TaskRun()
         {
             Action action = () =>
-                            {
-                                Console.WriteLine("Starting...");
-                                Thread.Sleep(1000);
-                                Console.WriteLine("... finished!");
-                            };
+            {
+                Console.WriteLine("Starting...");
+                Thread.Sleep(1000);
+                Console.WriteLine("... finished!");
+            };
 
             var task = Task.Run(action);
             task.Wait();
@@ -77,6 +77,7 @@ namespace TPLSamples
             task = Task.Factory.StartNew(action, TaskCreationOptions.DenyChildAttach);
             task.Wait();
         }
+
         public static void ParametrizedTask()
         {
             var task = new Task<int>(() => new Random().Next());
@@ -93,17 +94,17 @@ namespace TPLSamples
         public static void WaitAllWaitAny()
         {
             var firstTask = Task.Run(() =>
-                                     {
-                                         Console.WriteLine("Task 0 starting...");
-                                         Thread.SpinWait(10000000);
-                                         Console.WriteLine("Task 0 finishing...");
-                                     });
+            {
+                Console.WriteLine("Task 0 starting...");
+                Thread.SpinWait(10000000);
+                Console.WriteLine("Task 0 finishing...");
+            });
             var secondTask = Task.Run(() =>
-                                      {
-                                          Console.WriteLine("Task 1 starting...");
-                                          Thread.SpinWait(1000000000);
-                                          Console.WriteLine("Task 1 finishing...");
-                                      });
+            {
+                Console.WriteLine("Task 1 starting...");
+                Thread.SpinWait(1000000000);
+                Console.WriteLine("Task 1 finishing...");
+            });
 
             int finishedTaskIndex = Task.WaitAny(firstTask, secondTask);
             Console.WriteLine("Task {0} finished", finishedTaskIndex);
@@ -114,22 +115,22 @@ namespace TPLSamples
 
         public static void WhenAllWhenAny()
         {
-            Task.Run(() =>  Thread.SpinWait(1000000000));
+            Task.Run(() => Thread.SpinWait(1000000000));
             var firstTask = Task.Run(() =>
-                                     {
-                                         Console.WriteLine("Task 0 starting...");
-                                         Thread.SpinWait(10000000);
-                                         Console.WriteLine("Task 0 finishing...");
-                                         return 0;
-                                     });
+            {
+                Console.WriteLine("Task 0 starting...");
+                Thread.SpinWait(10000000);
+                Console.WriteLine("Task 0 finishing...");
+                return 0;
+            });
             var secondTask = Task.Run(() =>
-                                      {
-                                          Console.WriteLine("Task 1 starting...");
-                                          Thread.SpinWait(1000000000);
-                                          Console.WriteLine("Task 1 finishing...");
-                                          return 1;
-                                      });
-            
+            {
+                Console.WriteLine("Task 1 starting...");
+                Thread.SpinWait(1000000000);
+                Console.WriteLine("Task 1 finishing...");
+                return 1;
+            });
+
             Task<Task<int>> whenAnyTask = Task.WhenAny(firstTask, secondTask);
             whenAnyTask.Wait();
             Console.WriteLine("Task {0} finished", whenAnyTask.Result == firstTask ? "0" : "1");

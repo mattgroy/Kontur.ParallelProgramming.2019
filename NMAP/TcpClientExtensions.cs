@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace NMAP
 {
-    static class TcpClientExtensions
+    internal static class TcpClientExtensions
     {
         public static Task Connect(this TcpClient tcpClient, IPAddress ipAddr, int port, int timeout = 3000)
         {
@@ -13,7 +13,8 @@ namespace NMAP
             return connectTask;
         }
 
-		public static async Task<Task> ConnectAsync(this TcpClient tcpClient, IPAddress ipAddr, int port, int timeout = 3000)
+        public static async Task<Task> ConnectAsync(this TcpClient tcpClient, IPAddress ipAddr, int port,
+            int timeout = 3000)
         {
             var connectTask = tcpClient.ConnectAsync(ipAddr, port);
             await Task.WhenAny(connectTask, Task.Delay(timeout));

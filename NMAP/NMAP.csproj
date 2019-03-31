@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IPScanner.cs" />
+    <Compile Include="ParallelScanner.cs" />
     <Compile Include="PortStatus.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
