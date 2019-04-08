@@ -75,7 +75,7 @@ namespace TPLSamples
 
         public static void Flattening()
         {
-            var crashingTask = Task.Factory.StartNew((() =>
+            var crashingTask = Task.Factory.StartNew(() =>
             {
                 Task.Factory.StartNew(() => { throw new TimeoutException(); }
                     , TaskCreationOptions.AttachedToParent);
@@ -87,7 +87,7 @@ namespace TPLSamples
                 Thread.Sleep(1000);
 
                 throw new ArgumentException();
-            }));
+            });
 
             crashingTask.ContinueWith(_ => { }).Wait();
 

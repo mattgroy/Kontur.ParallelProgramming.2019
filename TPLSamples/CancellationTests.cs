@@ -10,6 +10,81 @@ namespace Cancellation
     [TestFixture]
     public static class CancellationTests
     {
+        private static Task CreateCancellableTask(CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                for (var i = 0; i < 10; i++)
+                {
+                    Console.WriteLine(i);
+                    Thread.Sleep(100);
+                    if (cancellationToken.IsCancellationRequested)
+                        throw new OperationCanceledException( /*cancellationToken*/);
+                    //cancellationToken.ThrowIfCancellationRequested();
+                }
+            }, cancellationToken);
+        }
+
+        private static readonly Queue<string> statuses = new Queue<string>();
+
+        private static void LogAction(string message, Action action)
+        {
+            lock (statuses)
+            {
+                action();
+                statuses.Enqueue(message);
+            }
+        }
+
+        private static void DoTask(string workerName, Stopwatch workingTime, CancellationToken cancellationToken)
+        {
+            using (cancellationToken.Register(() =>
+            {
+                Console.WriteLine("{0} was interrupted after {1} ms", workerName, workingTime.ElapsedMilliseconds);
+            }))
+            {
+                Console.WriteLine("{0} worker is concentrating...", workerName);
+                for (var i = 0; i < 10; i++)
+                {
+                    Thread.Sleep(100);
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                Console.WriteLine("{0} worker has finished his task!", workerName);
+            }
+        }
+
+        [Test]
+        //CancellationTokenRegistration.Dispose
+        public static void CancellationDeadlock()
+        {
+            using (var cts = new CancellationTokenSource())
+            {
+                var ct = cts.Token;
+
+                var task = Task.Run(() =>
+                {
+                    var ctr = default(CancellationTokenRegistration);
+
+                    LogAction("cancellation registered",
+                        () => ctr = ct.Register(() => { LogAction("cancelling", () => { }); }));
+
+                    Thread.Sleep(20); //emulating some real work
+
+                    LogAction("finished",
+                        () =>
+                        {
+                            Thread.Sleep(50); //emulating some other disposing action
+                            ctr.Dispose();
+                        });
+                }, ct);
+
+                Thread.Sleep(30);
+                cts.Cancel();
+                task.IgnoreExceptions().Wait();
+            }
+        }
+
         [Test]
         public static void CancelNotPerformed()
         {
@@ -51,10 +126,7 @@ namespace Cancellation
                     Thread.Sleep(500);
                     //throw new NotImplementedException();
                 }, cts.Token);
-                for (int i = 1; i < tasks.Length; i++)
-                {
-                    tasks[i] = Task.Run(() => { Thread.Sleep(1000); }, cts.Token);
-                }
+                for (var i = 1; i < tasks.Length; i++) tasks[i] = Task.Run(() => { Thread.Sleep(1000); }, cts.Token);
 
                 var aggregatedTask = Task.WhenAll(tasks);
                 var sw = Stopwatch.StartNew();
@@ -75,7 +147,7 @@ namespace Cancellation
                 var token = cts.Token;
                 var task = Task.Run(() =>
                 {
-                    for (int i = 0; i < 10; i++)
+                    for (var i = 0; i < 10; i++)
                     {
                         Thread.Sleep(100);
                         token.ThrowIfCancellationRequested();
@@ -83,7 +155,7 @@ namespace Cancellation
                 }, token);
                 var continuation = task.ContinueWith(t =>
                 {
-                    for (int i = 0; i < 10; i++)
+                    for (var i = 0; i < 10; i++)
                     {
                         Thread.Sleep(100);
                         token.ThrowIfCancellationRequested();
@@ -109,6 +181,31 @@ namespace Cancellation
         }
 
         [Test]
+        public static void LinkedToken()
+        {
+            using (var incomingPhoneCall = new CancellationTokenSource())
+            using (var incomingEmail = new CancellationTokenSource())
+            using (var incomingPhoneOrEmail =
+                CancellationTokenSource.CreateLinkedTokenSource(incomingPhoneCall.Token, incomingEmail.Token))
+            {
+                var sw = Stopwatch.StartNew();
+
+                var goodWorker = Task.Run(() => { DoTask("good", sw, incomingPhoneCall.Token); },
+                    incomingPhoneCall.Token);
+                var badWorker = Task.Run(() => { DoTask("bad", sw, incomingPhoneOrEmail.Token); },
+                    incomingPhoneOrEmail.Token);
+
+                //Thread.Sleep(300);
+                //incomingEmail.Cancel();
+                Thread.Sleep(300);
+                incomingPhoneCall.Cancel();
+                Task.WaitAll(goodWorker.IgnoreExceptions(), badWorker.IgnoreExceptions());
+                Console.WriteLine("All tasks finished in {0}. Statuses: good - {1}, bad - {2}", sw.ElapsedMilliseconds,
+                    goodWorker.Status, badWorker.Status);
+            }
+        }
+
+        [Test]
         //ThrowIf...
         //TaskStatus(Faulted!)
         //Resharper
@@ -124,59 +221,6 @@ namespace Cancellation
                 cts.Cancel();
                 task.IgnoreExceptions().Wait();
                 Console.WriteLine(task.Status);
-            }
-        }
-
-        private static Task CreateCancellableTask(CancellationToken cancellationToken)
-        {
-            return Task.Run(() =>
-            {
-                for (int i = 0; i < 10; i++)
-                {
-                    Console.WriteLine(i);
-                    Thread.Sleep(100);
-                    if (cancellationToken.IsCancellationRequested)
-                        throw new OperationCanceledException( /*cancellationToken*/);
-                    //cancellationToken.ThrowIfCancellationRequested();
-                }
-            }, cancellationToken);
-        }
-
-        [Test]
-        public static void UsingOldToken()
-        {
-            CancellationToken token;
-            Task task;
-
-            using (var cts = new CancellationTokenSource())
-            {
-                token = cts.Token;
-                cts.Cancel();
-                task = Task.Run(() => { }, token);
-                task.IgnoreExceptions().Wait();
-                Console.WriteLine(task.Status);
-            }
-
-            task = Task.Run(() => { }, token);
-            task.IgnoreExceptions().Wait();
-            Console.WriteLine(task.Status);
-        }
-
-        [Test]
-        public static void TestMultipleTokens()
-        {
-            using (var firstCTS = new CancellationTokenSource())
-            using (var secondCTS = new CancellationTokenSource())
-            {
-                var firstTask = Task.Run(() =>
-                {
-                    Thread.Sleep(1000);
-                    secondCTS.Token.ThrowIfCancellationRequested();
-                }, firstCTS.Token);
-                Thread.Sleep(100);
-                secondCTS.Cancel();
-                firstTask.IgnoreExceptions().Wait();
-                Console.WriteLine(firstTask.Status);
             }
         }
 
@@ -214,89 +258,42 @@ namespace Cancellation
             }
         }
 
-        private static readonly Queue<string> statuses = new Queue<string>();
-
-        private static void LogAction(string message, Action action)
+        [Test]
+        public static void TestMultipleTokens()
         {
-            lock (statuses)
+            using (var firstCTS = new CancellationTokenSource())
+            using (var secondCTS = new CancellationTokenSource())
             {
-                action();
-                statuses.Enqueue(message);
+                var firstTask = Task.Run(() =>
+                {
+                    Thread.Sleep(1000);
+                    secondCTS.Token.ThrowIfCancellationRequested();
+                }, firstCTS.Token);
+                Thread.Sleep(100);
+                secondCTS.Cancel();
+                firstTask.IgnoreExceptions().Wait();
+                Console.WriteLine(firstTask.Status);
             }
         }
 
         [Test]
-        //CancellationTokenRegistration.Dispose
-        public static void CancellationDeadlock()
+        public static void UsingOldToken()
         {
+            CancellationToken token;
+            Task task;
+
             using (var cts = new CancellationTokenSource())
             {
-                var ct = cts.Token;
-
-                var task = Task.Run(() =>
-                {
-                    var ctr = default(CancellationTokenRegistration);
-
-                    LogAction("cancellation registered",
-                        () => ctr = ct.Register(() => { LogAction("cancelling", () => { }); }));
-
-                    Thread.Sleep(20); //emulating some real work
-
-                    LogAction("finished",
-                        () =>
-                        {
-                            Thread.Sleep(50); //emulating some other disposing action
-                            ctr.Dispose();
-                        });
-                }, ct);
-
-                Thread.Sleep(30);
+                token = cts.Token;
                 cts.Cancel();
+                task = Task.Run(() => { }, token);
                 task.IgnoreExceptions().Wait();
+                Console.WriteLine(task.Status);
             }
-        }
 
-        private static void DoTask(string workerName, Stopwatch workingTime, CancellationToken cancellationToken)
-        {
-            using (cancellationToken.Register(() =>
-            {
-                Console.WriteLine("{0} was interrupted after {1} ms", workerName, workingTime.ElapsedMilliseconds);
-            }))
-            {
-                Console.WriteLine("{0} worker is concentrating...", workerName);
-                for (int i = 0; i < 10; i++)
-                {
-                    Thread.Sleep(100);
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-
-                Console.WriteLine("{0} worker has finished his task!", workerName);
-            }
-        }
-
-        [Test]
-        public static void LinkedToken()
-        {
-            using (var incomingPhoneCall = new CancellationTokenSource())
-            using (var incomingEmail = new CancellationTokenSource())
-            using (var incomingPhoneOrEmail =
-                CancellationTokenSource.CreateLinkedTokenSource(incomingPhoneCall.Token, incomingEmail.Token))
-            {
-                var sw = Stopwatch.StartNew();
-
-                var goodWorker = Task.Run(() => { DoTask("good", sw, incomingPhoneCall.Token); },
-                    incomingPhoneCall.Token);
-                var badWorker = Task.Run(() => { DoTask("bad", sw, incomingPhoneOrEmail.Token); },
-                    incomingPhoneOrEmail.Token);
-
-                //Thread.Sleep(300);
-                //incomingEmail.Cancel();
-                Thread.Sleep(300);
-                incomingPhoneCall.Cancel();
-                Task.WaitAll(goodWorker.IgnoreExceptions(), badWorker.IgnoreExceptions());
-                Console.WriteLine("All tasks finished in {0}. Statuses: good - {1}, bad - {2}", sw.ElapsedMilliseconds,
-                    goodWorker.Status, badWorker.Status);
-            }
+            task = Task.Run(() => { }, token);
+            task.IgnoreExceptions().Wait();
+            Console.WriteLine(task.Status);
         }
     }
 

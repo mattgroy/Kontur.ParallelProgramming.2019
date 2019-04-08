@@ -10,14 +10,15 @@ using log4net.Config;
 
 namespace ClusterClient
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static readonly ILog Log = LogManager.GetLogger(typeof(Program));
+
+        private static void Main(string[] args)
         {
             XmlConfigurator.Configure();
 
-            string[] replicaAddresses;
-            if (!TryGetReplicaAddresses(args, out replicaAddresses))
+            if (!TryGetReplicaAddresses(args, out var replicaAddresses))
                 return;
 
             try
@@ -25,8 +26,14 @@ namespace ClusterClient
                 var clients = new ClusterClientBase[]
                 {
                     new RandomClusterClient(replicaAddresses),
+                    new ParallelClusterClient(replicaAddresses),
+                    new RoundRobinClusterClient(replicaAddresses)
                 };
-                var queries = new[] {"От", "топота", "копыт", "пыль", "по", "полю", "летит", "На", "дворе", "трава", "на", "траве", "дрова"};
+                var queries = new[]
+                {
+                    "От", "топота", "копыт", "пыль", "по", "полю", "летит", "На", "дворе", "трава", "на", "траве",
+                    "дрова"
+                };
 
                 foreach (var client in clients)
                 {
@@ -39,7 +46,8 @@ namespace ClusterClient
                             {
                                 await client.ProcessRequestAsync(query, TimeSpan.FromSeconds(6));
 
-                                Console.WriteLine("Processed query \"{0}\" in {1} ms", query, timer.ElapsedMilliseconds);
+                                Console.WriteLine("Processed query \"{0}\" in {1} ms", query,
+                                    timer.ElapsedMilliseconds);
                             }
                             catch (TimeoutException)
                             {
@@ -58,7 +66,7 @@ namespace ClusterClient
         private static bool TryGetReplicaAddresses(string[] args, out string[] replicaAddresses)
         {
             var argumentsParser = new FluentCommandLineParser();
-            string[] result = {};
+            string[] result = { };
 
             argumentsParser.Setup<string>(CaseType.CaseInsensitive, "f", "file")
                 .WithDescription("Path to the file with replica addresses")
@@ -80,7 +88,5 @@ namespace ClusterClient
             replicaAddresses = result;
             return !parsingResult.HasErrors;
         }
-
-        private static readonly ILog Log = LogManager.GetLogger(typeof(Program));
     }
 }

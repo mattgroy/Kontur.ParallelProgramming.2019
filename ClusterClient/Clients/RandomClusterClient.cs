@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using ClusterClient.Utils;
 using log4net;
 
 namespace ClusterClient.Clients
@@ -11,27 +12,15 @@ namespace ClusterClient.Clients
         public RandomClusterClient(string[] replicaAddresses)
             : base(replicaAddresses)
         {
-
         }
+
+        protected override ILog Log => LogManager.GetLogger(typeof(RandomClusterClient));
 
         public override async Task<string> ProcessRequestAsync(string query, TimeSpan timeout)
         {
-            var uri = ReplicaAddresses[random.Next(ReplicaAddresses.Length)];
-            var webRequest = CreateRequest(uri + "?query=" + query);
-            
-            Log.InfoFormat("Processing {0}", webRequest.RequestUri);
-
-            var resultTask = ProcessRequestAsync(webRequest);
-            await Task.WhenAny(resultTask, Task.Delay(timeout));
-            if (!resultTask.IsCompleted)
-                throw new TimeoutException();
-
-            return resultTask.Result;
-        }
-
-        protected override ILog Log
-        {
-            get { return LogManager.GetLogger(typeof(RandomClusterClient)); }
+            var uri = this.ReplicaAddresses[this.random.Next(this.ReplicaAddresses.Length)];
+//            return await SendRequestWithTimeoutAsync(uri, query, timeout);
+            return await SendRequestAsync(uri, query).WithTimeoutAsync(timeout);
         }
     }
 }

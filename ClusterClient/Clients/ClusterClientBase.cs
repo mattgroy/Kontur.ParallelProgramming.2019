@@ -10,15 +10,33 @@ namespace ClusterClient.Clients
 {
     public abstract class ClusterClientBase
     {
-        protected string[] ReplicaAddresses { get; set; }
-
         protected ClusterClientBase(string[] replicaAddresses)
         {
-            ReplicaAddresses = replicaAddresses;
+            this.ReplicaAddresses = replicaAddresses;
         }
 
-        public abstract Task<string> ProcessRequestAsync(string query, TimeSpan timeout);
+        protected string[] ReplicaAddresses { get; }
         protected abstract ILog Log { get; }
+
+        public abstract Task<string> ProcessRequestAsync(string query, TimeSpan timeout);
+
+        protected async Task<string> SendRequestAsync(string uri, string query)
+        {
+            var webRequest = CreateRequest(uri + "?query=" + query);
+            this.Log.InfoFormat("Processing {0}", webRequest.RequestUri);
+
+            return await ProcessRequestAsync(webRequest);
+        }
+
+//        protected async Task<string> SendRequestWithTimeoutAsync(string uri, string query, TimeSpan timeout)
+//        {
+//            var webRequest = CreateRequest(uri + "?query=" + query);
+//            this.Log.InfoFormat("Processing {0}", webRequest.RequestUri);
+
+//            var resultTask = ProcessRequestAsync(webRequest);
+//            await resultTask.WaitWithDelayAsync(timeout);
+//            return resultTask.Result;
+//        }
 
         protected static HttpWebRequest CreateRequest(string uriStr)
         {
@@ -36,7 +54,8 @@ namespace ClusterClient.Clients
             using (var response = await request.GetResponseAsync())
             {
                 var result = await new StreamReader(response.GetResponseStream(), Encoding.UTF8).ReadToEndAsync();
-                Log.InfoFormat("Response from {0} received in {1} ms", request.RequestUri, timer.ElapsedMilliseconds);
+                this.Log.InfoFormat("Response from {0} received in {1} ms", request.RequestUri,
+                    timer.ElapsedMilliseconds);
                 return result;
             }
         }

@@ -7,103 +7,106 @@ using NUnit.Framework;
 
 namespace ClusterTests
 {
-	public class FUnitLite
-	{
-		public void AddTestFixture<T>(T testFixture)
-		{
-			testFixtures.Add(new TestFixture<T>(testFixture));
-		}
+    public class FUnitLite
+    {
+        private static readonly ILog Log = LogManager.GetLogger(typeof(FUnitLite));
 
-		public void RunAndReport()
-		{
-			var results = new List<(string, bool)>();
-			foreach (var testFixture in testFixtures)
-				results.AddRange(testFixture.Run().Select(p => ($"{testFixture.Name}.{p.Item1}", p.Item2)));
+        private readonly List<ITestFixture> testFixtures = new List<ITestFixture>();
 
-			var oldColor = Console.ForegroundColor;
-			foreach (var (name, isSuccess) in results)
-			{
-				Console.ForegroundColor = isSuccess ? ConsoleColor.Green : ConsoleColor.Red;
-				Console.WriteLine($"[{name}] {(isSuccess ? "Passed" : "Faulted")}");
-			}
-			Console.ForegroundColor = oldColor;
-		}
+        public void AddTestFixture<T>(T testFixture)
+        {
+            this.testFixtures.Add(new TestFixture<T>(testFixture));
+        }
 
-		private readonly List<ITestFixture> testFixtures = new List<ITestFixture>();
+        public void RunAndReport()
+        {
+            var results = new List<(string, bool)>();
+            foreach (var testFixture in this.testFixtures)
+                results.AddRange(testFixture.Run().Select(p => ($"{testFixture.Name}.{p.Item1}", p.Item2)));
 
-		private interface ITestFixture
-		{
-			string Name { get; }
-			IEnumerable<(string, bool)> Run();
-		}
+            var oldColor = Console.ForegroundColor;
+            foreach (var (name, isSuccess) in results)
+            {
+                Console.ForegroundColor = isSuccess ? ConsoleColor.Green : ConsoleColor.Red;
+                Console.WriteLine($"[{name}] {(isSuccess ? "Passed" : "Faulted")}");
+            }
 
-		private class TestFixture<T> : ITestFixture
-		{
-			public TestFixture(T instance)
-			{
-				Name = typeof(T).Name;
+            Console.ForegroundColor = oldColor;
+        }
 
-				setUp = GetMethodsWithAttribute<SetUpAttribute>(instance).SingleOrDefault();
-				tearDown = GetMethodsWithAttribute<TearDownAttribute>(instance).SingleOrDefault();
-				var tests = GetMethodsWithAttribute<TestAttribute>(instance);
+        private interface ITestFixture
+        {
+            string Name { get; }
+            IEnumerable<(string, bool)> Run();
+        }
 
-				foreach (var method in tests)
-					this.tests.Add(method);
-			}
+        private class TestFixture<T> : ITestFixture
+        {
+            private readonly Method setUp;
+            private readonly Method tearDown;
+            private readonly List<Method> tests = new List<Method>();
 
-			public IEnumerable<(string, bool)> Run()
-			{
-				foreach (var test in tests)
-				{
-					if (setUp.Action != null && !setUp.Action.Try(out var setUpEx))
-						throw new InvalidOperationException($"[{Name}.{test.Name}] SetUp faulted", setUpEx);
+            public TestFixture(T instance)
+            {
+                this.Name = typeof(T).Name;
 
-					if (test.Action.Try(out var ex))
-					{
-						yield return (test.Name, true);
-					}
-					else
-					{
-						Log.Error($"[{Name}.{test.Name}]", ex);
-						yield return (test.Name, false);
-					}
+                this.setUp = GetMethodsWithAttribute<SetUpAttribute>(instance).SingleOrDefault();
+                this.tearDown = GetMethodsWithAttribute<TearDownAttribute>(instance).SingleOrDefault();
+                var tests = GetMethodsWithAttribute<TestAttribute>(instance);
 
-					if (tearDown.Action != null && !tearDown.Action.Try(out var tearDownEx))
-						throw new InvalidOperationException($"[{Name}.{test.Name}] TearDown faulted", tearDownEx);
-				}
-			}
+                foreach (var method in tests)
+                    this.tests.Add(method);
+            }
 
-			public string Name { get; }
-			private readonly List<Method> tests = new List<Method>();
-			private readonly Method setUp;
-			private readonly Method tearDown;
+            public IEnumerable<(string, bool)> Run()
+            {
+                foreach (var test in this.tests)
+                {
+                    if (this.setUp.Action != null && !this.setUp.Action.Try(out var setUpEx))
+                        throw new InvalidOperationException($"[{this.Name}.{test.Name}] SetUp faulted", setUpEx);
 
-			private static IEnumerable<Method> GetMethodsWithAttribute<TAttribute>(T testFixture)
-				where TAttribute : Attribute
-			{
-				return typeof(T).GetMethods()
-					.Where(m => m.GetCustomAttributes<TAttribute>().Any())
-					.Where(m => m.GetParameters().Length == 0)
-					.Select(m => new Method(m, testFixture));
-			}
+                    if (test.Action.Try(out var ex))
+                    {
+                        yield return (test.Name, true);
+                    }
+                    else
+                    {
+                        Log.Error($"[{this.Name}.{test.Name}]", ex);
+                        yield return (test.Name, false);
+                    }
 
-			private class Method
-			{
-				public readonly string Name;
-				public readonly Action Action;
+                    if (this.tearDown.Action != null && !this.tearDown.Action.Try(out var tearDownEx))
+                        throw new InvalidOperationException($"[{this.Name}.{test.Name}] TearDown faulted", tearDownEx);
+                }
+            }
 
-				public Method(MethodInfo method, object instance)
-					: this(method.Name, () => method.Invoke(instance, new object[0]))
-				{ }
+            public string Name { get; }
 
-				public Method(string name, Action action)
-				{
-					Name = name;
-					Action = action;
-				}
-			}
-		}
+            private static IEnumerable<Method> GetMethodsWithAttribute<TAttribute>(T testFixture)
+                where TAttribute : Attribute
+            {
+                return typeof(T).GetMethods()
+                    .Where(m => m.GetCustomAttributes<TAttribute>().Any())
+                    .Where(m => m.GetParameters().Length == 0)
+                    .Select(m => new Method(m, testFixture));
+            }
 
-		private static readonly ILog Log = LogManager.GetLogger(typeof(FUnitLite));
-	}
+            private class Method
+            {
+                public readonly Action Action;
+                public readonly string Name;
+
+                public Method(MethodInfo method, object instance)
+                    : this(method.Name, () => method.Invoke(instance, new object[0]))
+                {
+                }
+
+                public Method(string name, Action action)
+                {
+                    this.Name = name;
+                    this.Action = action;
+                }
+            }
+        }
+    }
 }

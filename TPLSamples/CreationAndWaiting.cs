@@ -87,7 +87,7 @@ namespace TPLSamples
 
         public static void TaskFromResult()
         {
-            Task<int> task = Task.FromResult(new Random().Next());
+            var task = Task.FromResult(new Random().Next());
             Console.WriteLine(task.Result);
         }
 
@@ -106,7 +106,7 @@ namespace TPLSamples
                 Console.WriteLine("Task 1 finishing...");
             });
 
-            int finishedTaskIndex = Task.WaitAny(firstTask, secondTask);
+            var finishedTaskIndex = Task.WaitAny(firstTask, secondTask);
             Console.WriteLine("Task {0} finished", finishedTaskIndex);
 
             Task.WaitAll(firstTask, secondTask);
@@ -131,11 +131,11 @@ namespace TPLSamples
                 return 1;
             });
 
-            Task<Task<int>> whenAnyTask = Task.WhenAny(firstTask, secondTask);
+            var whenAnyTask = Task.WhenAny(firstTask, secondTask);
             whenAnyTask.Wait();
             Console.WriteLine("Task {0} finished", whenAnyTask.Result == firstTask ? "0" : "1");
 
-            Task<int[]> aggregationTask = Task.WhenAll(firstTask, secondTask);
+            var aggregationTask = Task.WhenAll(firstTask, secondTask);
             aggregationTask.Wait();
             Console.WriteLine("All tasks finished: " + string.Join(", ", aggregationTask.Result));
         }

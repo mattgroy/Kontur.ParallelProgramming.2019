@@ -18,17 +18,17 @@ namespace NMAP
                 if (await PingAddr(ipAddr) != IPStatus.Success) return;
                 await Task.WhenAll(ports.Select(port => CheckPort(ipAddr, port)));
             });
-            
+
             return Task.WhenAll(tasks);
         }
 
         private async Task<IPStatus> PingAddr(IPAddress ipAddr, int timeout = 3000)
-        {            
-            log.Info($"Pinging {ipAddr}");
+        {
+            this.log.Info($"Pinging {ipAddr}");
             using (var ping = new Ping())
             {
                 var status = (await ping.SendPingAsync(ipAddr, timeout)).Status;
-                log.Info($"Pinged {ipAddr}: {status}");
+                this.log.Info($"Pinged {ipAddr}: {status}");
                 return status;
             }
         }
@@ -52,7 +52,7 @@ namespace NMAP
                         break;
                 }
 
-                log.Info($"Checked {ipAddr}:{port} - {portStatus}");
+                this.log.Info($"Checked {ipAddr}:{port} - {portStatus}");
             }
         }
     }

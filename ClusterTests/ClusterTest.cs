@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -17,106 +16,87 @@ using NUnit.Framework;
 
 namespace ClusterTests
 {
-	[TestFixture]
+    [TestFixture]
     public abstract class ClusterTest
     {
-	    protected const int Slow = 10_000_000;
-	    protected const int Fast = 10;
-	    protected const int Timeout = 6_000;
-
-	    [Test]
-	    public void Client_should_return_success_when_there_is_only_one_fast_replica()
-	    {
-		    CreateServer(Fast);
-
-		    ProcessRequests(Timeout);
-	    }
-
-	    [Test]
-	    public void Client_should_return_success_when_all_replicas_are_fast()
-	    {
-		    for (int i = 0; i < 3; i++)
-			    CreateServer(Fast);
-
-		    ProcessRequests(Timeout);
-	    }
-
-	    [Test]
-	    public void Client_should_fail_when_all_replicas_are_slow()
-	    {
-		    for (int i = 0; i < 3; i++)
-			    CreateServer(Slow);
-
-		    Action action = () => ProcessRequests(Timeout);
-
-		    action.Should().Throw<TimeoutException>();
-	    }
-
-		protected abstract ClusterClientBase CreateClient(string[] replicaAddresses);
-
-		[SetUp] public void SetUp() => clusterServers = new List<ClusterServer>();
-        [TearDown] public void TearDown() => StopServers();
-
-		protected ClusterServer CreateServer(int delay, bool notStart = false)
-		{
-			var serverOptions = new ServerOptions
-			{
-				Async = true, MethodDuration = delay, MethodName = "some_method",
-				Port = GetFreePort()
-			};
-
-			var server = new ClusterServer(serverOptions, log);
-			clusterServers.Add(server);
-
-			if (!notStart)
-			{
-				server.Start();
-				Console.WriteLine($"Started server at port {serverOptions.Port}");
-			}
-
-			return server;
-		}
-
-		protected TimeSpan[] ProcessRequests(double timeout)
+        [SetUp]
+        public void SetUp()
         {
-	        var addresses = clusterServers
-		        .Select(cs => $"http://localhost:{cs.ServerOptions.Port}/{cs.ServerOptions.MethodName}/")
-		        .ToArray();
+            this.clusterServers = new List<ClusterServer>();
+        }
 
-			var client = CreateClient(addresses);
+        [TearDown]
+        public void TearDown()
+        {
+            StopServers();
+        }
 
-			Thread.Sleep(1000);
+        protected const int Slow = 10_000_000;
+        protected const int Fast = 10;
+        protected const int Timeout = 6_000;
 
-			var queries = new[]
+        protected abstract ClusterClientBase CreateClient(string[] replicaAddresses);
+
+        protected ClusterServer CreateServer(int delay, bool notStart = false)
+        {
+            var serverOptions = new ServerOptions
             {
-				"lorem", "ipsum", "dolor", "sit", "amet", "consectetuer",
-				"adipiscing", "elit", "sed", "diam", "nonummy", "nibh", "euismod",
-				"tincidunt", "ut", "laoreet", "dolore", "magna", "aliquam",
-				"erat"
-			};
+                Async = true, MethodDuration = delay, MethodName = "some_method",
+                Port = GetFreePort()
+            };
+
+            var server = new ClusterServer(serverOptions, this.log);
+            this.clusterServers.Add(server);
+
+            if (!notStart)
+            {
+                server.Start();
+                Console.WriteLine($"Started server at port {serverOptions.Port}");
+            }
+
+            return server;
+        }
+
+        protected TimeSpan[] ProcessRequests(double timeout)
+        {
+            var addresses = this.clusterServers
+                .Select(cs => $"http://localhost:{cs.ServerOptions.Port}/{cs.ServerOptions.MethodName}/")
+                .ToArray();
+
+            var client = CreateClient(addresses);
+
+            Thread.Sleep(1000);
+
+            var queries = new[]
+            {
+                "lorem", "ipsum", "dolor", "sit", "amet", "consectetuer",
+                "adipiscing", "elit", "sed", "diam", "nonummy", "nibh", "euismod",
+                "tincidunt", "ut", "laoreet", "dolore", "magna", "aliquam",
+                "erat"
+            };
 
             Console.WriteLine("Testing {0} started", client.GetType());
             var result = Task.WhenAll(queries.Select(
-	            async query =>
-	            {
-		            var timer = Stopwatch.StartNew();
-		            try
-		            {
-			            var clientResult = await client.ProcessRequestAsync(query, TimeSpan.FromMilliseconds(timeout));
-						timer.Stop();
+                async query =>
+                {
+                    var timer = Stopwatch.StartNew();
+                    try
+                    {
+                        var clientResult = await client.ProcessRequestAsync(query, TimeSpan.FromMilliseconds(timeout));
+                        timer.Stop();
 
-			            clientResult.Should().Be(Encoding.UTF8.GetString(ClusterHelpers.GetBase64HashBytes(query)));
+                        clientResult.Should().Be(Encoding.UTF8.GetString(ClusterHelpers.GetBase64HashBytes(query)));
 
-			            Console.WriteLine("Query \"{0}\" successful ({1} ms)", query, timer.ElapsedMilliseconds);
+                        Console.WriteLine("Query \"{0}\" successful ({1} ms)", query, timer.ElapsedMilliseconds);
 
-			            return timer.Elapsed;
-		            }
-		            catch (TimeoutException)
-		            {
-			            Console.WriteLine("Query \"{0}\" timeout ({1} ms)", query, timer.ElapsedMilliseconds);
-			            throw;
-		            }
-	            }).ToArray()).GetAwaiter().GetResult();
+                        return timer.Elapsed;
+                    }
+                    catch (TimeoutException)
+                    {
+                        Console.WriteLine("Query \"{0}\" timeout ({1} ms)", query, timer.ElapsedMilliseconds);
+                        throw;
+                    }
+                }).ToArray()).GetAwaiter().GetResult();
             Console.WriteLine("Testing {0} finished", client.GetType());
             return result;
         }
@@ -124,7 +104,7 @@ namespace ClusterTests
 
         private void StopServers()
         {
-            foreach (var clusterServer in clusterServers)
+            foreach (var clusterServer in this.clusterServers)
                 clusterServer.Stop();
         }
 
@@ -134,7 +114,7 @@ namespace ClusterTests
             try
             {
                 listener.Start();
-                return ((IPEndPoint)listener.LocalEndpoint).Port;
+                return ((IPEndPoint) listener.LocalEndpoint).Port;
             }
             finally
             {
@@ -146,6 +126,37 @@ namespace ClusterTests
 
         private readonly ILog log = LogManager.GetLogger(typeof(Program));
 
-        static ClusterTest() => XmlConfigurator.Configure();
+        static ClusterTest()
+        {
+            XmlConfigurator.Configure();
+        }
+
+        [Test]
+        public void Client_should_fail_when_all_replicas_are_slow()
+        {
+            for (var i = 0; i < 3; i++)
+                CreateServer(Slow);
+
+            Action action = () => ProcessRequests(Timeout);
+
+            action.Should().Throw<TimeoutException>();
+        }
+
+        [Test]
+        public void Client_should_return_success_when_all_replicas_are_fast()
+        {
+            for (var i = 0; i < 3; i++)
+                CreateServer(Fast);
+
+            ProcessRequests(Timeout);
+        }
+
+        [Test]
+        public void Client_should_return_success_when_there_is_only_one_fast_replica()
+        {
+            CreateServer(Fast);
+
+            ProcessRequests(Timeout);
+        }
     }
 }

@@ -1,12 +1,12 @@
-﻿using System;
-using ClusterClient.Clients;
-using FluentAssertions;
-using NUnit.Framework;
+﻿using ClusterClient.Clients;
 
 namespace ClusterTests
 {
-	public class RandomClusterClientTest : ClusterTest
-	{
-		protected override ClusterClientBase CreateClient(string[] replicaAddresses) => new RandomClusterClient(replicaAddresses);
-	}
+    public class RandomClusterClientTest : ClusterTest
+    {
+        protected override ClusterClientBase CreateClient(string[] replicaAddresses)
+        {
+            return new RandomClusterClient(replicaAddresses);
+        }
+    }
 }

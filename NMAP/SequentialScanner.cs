@@ -27,11 +27,11 @@ namespace NMAP
 
         protected IPStatus PingAddr(IPAddress ipAddr, int timeout = 3000)
         {
-            log.Info($"Pinging {ipAddr}");
+            this.log.Info($"Pinging {ipAddr}");
             using (var ping = new Ping())
             {
                 var status = ping.Send(ipAddr, timeout).Status;
-                log.Info($"Pinged {ipAddr}: {status}");
+                this.log.Info($"Pinged {ipAddr}: {status}");
                 return status;
             }
         }
@@ -40,7 +40,7 @@ namespace NMAP
         {
             using (var tcpClient = new TcpClient())
             {
-                log.Info($"Checking {ipAddr}:{port}");
+                this.log.Info($"Checking {ipAddr}:{port}");
 
                 var connectTask = tcpClient.Connect(ipAddr, port, timeout);
                 PortStatus portStatus;
@@ -57,7 +57,7 @@ namespace NMAP
                         break;
                 }
 
-                log.Info($"Checked {ipAddr}:{port} - {portStatus}");
+                this.log.Info($"Checked {ipAddr}:{port} - {portStatus}");
             }
         }
     }

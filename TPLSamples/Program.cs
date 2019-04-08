@@ -1,11 +1,8 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace TPLSamples
+﻿namespace TPLSamples
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             Cancelation.CancelationExample();
         }

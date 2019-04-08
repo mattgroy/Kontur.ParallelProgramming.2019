@@ -1,64 +1,72 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 
 namespace Cluster
 {
-	public class ClusterServer
+    public class ClusterServer
     {
+        private const int Running = 1;
+        private const int NotRunning = 0;
+
+        private readonly ILog log;
+        private HttpListener httpListener;
+
+        private int isRunning = NotRunning;
+
+
+        private int RequestsCount;
+
         public ClusterServer(ServerOptions serverOptions, ILog log)
         {
             this.ServerOptions = serverOptions;
             this.log = log;
         }
 
+        public ServerOptions ServerOptions { get; }
+
         public void Start()
         {
-            if (Interlocked.CompareExchange(ref isRunning, Running, NotRunning) == NotRunning)
+            if (Interlocked.CompareExchange(ref this.isRunning, Running, NotRunning) == NotRunning)
             {
-                httpListener = new HttpListener
+                this.httpListener = new HttpListener
                 {
                     Prefixes =
                     {
-                        $"http://+:{ServerOptions.Port}/{ServerOptions.MethodName}/"
+                        $"http://+:{this.ServerOptions.Port}/{this.ServerOptions.MethodName}/"
                     }
                 };
 
-                log.InfoFormat($"Server is starting listening prefixes: {String.Join(";", httpListener.Prefixes)}");
+                this.log.InfoFormat(
+                    $"Server is starting listening prefixes: {string.Join(";", this.httpListener.Prefixes)}");
 
-                if (ServerOptions.Async)
+                if (this.ServerOptions.Async)
                 {
-                    log.InfoFormat("Press ENTER to stop listening");
-                    httpListener.StartProcessingRequestsAsync(CreateAsyncCallback(ServerOptions));
+                    this.log.InfoFormat("Press ENTER to stop listening");
+                    this.httpListener.StartProcessingRequestsAsync(CreateAsyncCallback(this.ServerOptions));
                 }
                 else
-                    httpListener.StartProcessingRequestsSync(CreateSyncCallback(ServerOptions));
+                {
+                    this.httpListener.StartProcessingRequestsSync(CreateSyncCallback(this.ServerOptions));
+                }
             }
         }
 
         public void Stop()
         {
-            if (Interlocked.CompareExchange(ref isRunning, NotRunning, Running) == Running)
-            {
-				if (httpListener.IsListening)
-					httpListener.Stop();
-            }
+            if (Interlocked.CompareExchange(ref this.isRunning, NotRunning, Running) == Running)
+                if (this.httpListener.IsListening)
+                    this.httpListener.Stop();
         }
-
-        public ServerOptions ServerOptions { get; }
 
         private Action<HttpListenerContext> CreateSyncCallback(ServerOptions parsedOptions)
         {
             return context =>
             {
-                var currentRequestId = Interlocked.Increment(ref RequestsCount);
-                log.InfoFormat("Thread #{0} received request #{1} at {2}",
+                var currentRequestId = Interlocked.Increment(ref this.RequestsCount);
+                this.log.InfoFormat("Thread #{0} received request #{1} at {2}",
                     Thread.CurrentThread.ManagedThreadId, currentRequestId, DateTime.Now.TimeOfDay);
 
                 Thread.Sleep(parsedOptions.MethodDuration);
@@ -66,7 +74,7 @@ namespace Cluster
                 var encryptedBytes = ClusterHelpers.GetBase64HashBytes(context.Request.QueryString["query"]);
                 context.Response.OutputStream.Write(encryptedBytes, 0, encryptedBytes.Length);
 
-                log.InfoFormat("Thread #{0} sent response #{1} at {2}",
+                this.log.InfoFormat("Thread #{0} sent response #{1} at {2}",
                     Thread.CurrentThread.ManagedThreadId, currentRequestId,
                     DateTime.Now.TimeOfDay);
             };
@@ -76,9 +84,9 @@ namespace Cluster
         {
             return async context =>
             {
-                var currentRequestNum = Interlocked.Increment(ref RequestsCount);
+                var currentRequestNum = Interlocked.Increment(ref this.RequestsCount);
                 var query = context.Request.QueryString["query"];
-                log.InfoFormat("Thread #{0} received request '{1}' #{2} at {3}",
+                this.log.InfoFormat("Thread #{0} received request '{1}' #{2} at {3}",
                     Thread.CurrentThread.ManagedThreadId, query, currentRequestNum, DateTime.Now.TimeOfDay);
 
                 await Task.Delay(parsedOptions.MethodDuration);
@@ -87,23 +95,10 @@ namespace Cluster
                 var encryptedBytes = ClusterHelpers.GetBase64HashBytes(query);
                 await context.Response.OutputStream.WriteAsync(encryptedBytes, 0, encryptedBytes.Length);
 
-                log.InfoFormat("Thread #{0} sent response '{1}' #{2} at {3}",
+                this.log.InfoFormat("Thread #{0} sent response '{1}' #{2} at {3}",
                     Thread.CurrentThread.ManagedThreadId, query, currentRequestNum,
                     DateTime.Now.TimeOfDay);
             };
         }
-
-     
-
-
-        private int RequestsCount;
-
-        private int isRunning = NotRunning;
-
-        private const int Running = 1;
-        private const int NotRunning = 0;
-
-        private readonly ILog log;
-        private HttpListener httpListener;
     }
 }
